@@ -21,9 +21,19 @@ DEITY_KEYWORDS = {
     "om mantra": ["om", "嗡", "六字真言", "mantra"],
 }
 
-RISK_TERMS = [
-    "guaranteed", "cure", "heal illness", "make money", "bring wealth",
-    "treat disease", "祛病", "治病", "包治", "发财", "暴富", "必定", "保证",
+OLD_BRAND_TERMS = ["KAILASH AURAS", "冈仁波齐奥拉斯"]
+
+HIGH_RISK_TERMS = [
+    "guaranteed",
+    "cure",
+    "heal",
+    "bring wealth",
+    "make money",
+    "治病",
+    "保证",
+    "必定",
+    "暴富",
+    "发财",
 ]
 
 ZODIAC_MAP = {
@@ -64,6 +74,18 @@ def clean_text(value: str | None) -> str:
 
 def contains_cjk(text: str) -> bool:
     return bool(re.search(r"[\u4e00-\u9fff]", text or ""))
+
+
+def contains_term(text: str, term: str) -> bool:
+    if re.search(r"[a-zA-Z]", term):
+        if term == "heal":
+            pattern = r"\bheal(?:s|ed|ing)?\b"
+        elif term == "cure":
+            pattern = r"\bcure(?:s|d)?\b"
+        else:
+            pattern = rf"\b{re.escape(term)}\b"
+        return bool(re.search(pattern, text, flags=re.IGNORECASE))
+    return term in text
 
 
 def detect_theme(*parts: str) -> str:
@@ -164,14 +186,15 @@ def recommended_tags(row: ProductRow) -> list[str]:
 
 def recommended_meta_description(row: ProductRow) -> str:
     theme = title_case_theme(detect_theme(row.title, row.body_html, row.tags))
+    article = "An" if theme[:1].lower() in {"a", "e", "i", "o", "u"} else "A"
     if "Bracelet" in recommended_product_type(row):
         desc = (
-            f"A {theme.lower()} beaded bracelet designed as meaningful crystal jewelry "
+            f"{article} {theme.lower()} beaded bracelet designed as meaningful crystal jewelry "
             "for everyday styling, mindful gifting, and soft layered looks."
         )
     else:
         desc = (
-            f"A {theme} thangka pendant inspired by Tibetan art symbolism, designed "
+            f"{article} {theme} thangka pendant inspired by Tibetan art symbolism, designed "
             "as meaningful jewelry for mindful wearing, gifting, and reflection."
         )
     return desc[:158].rstrip()
@@ -182,13 +205,26 @@ def recommended_alt_text(row: ProductRow) -> str:
 
 
 def compliance_notes(row: ProductRow) -> str:
-    text = clean_text(" ".join([row.title, row.body_html, row.seo_title, row.seo_description])).lower()
-    found = [term for term in RISK_TERMS if term.lower() in text]
+    text = clean_text(
+        " ".join(
+            [
+                row.title,
+                row.body_html,
+                row.tags,
+                row.image_alt_text,
+                row.seo_title,
+                row.seo_description,
+            ]
+        )
+    )
+    lowered = text.lower()
+    found_risk_terms = [term for term in HIGH_RISK_TERMS if contains_term(lowered, term.lower())]
+    found_old_brand_terms = [term for term in OLD_BRAND_TERMS if contains_term(lowered, term.lower())]
     notes = []
-    if found:
-        notes.append("Replace outcome-guarantee terms: " + ", ".join(found))
-    if "kailash auras" in text or "冈仁波齐奥拉斯" in text:
-        notes.append("Replace old brand term with Mandala Jewels")
+    if found_old_brand_terms:
+        notes.append("Old brand term found: " + ", ".join(found_old_brand_terms))
+    if found_risk_terms:
+        notes.append("High-risk compliance terms: " + ", ".join(found_risk_terms))
     if contains_cjk(row.title):
         notes.append("Title contains Chinese; create English SEO title")
     if not row.product_type:
@@ -200,7 +236,7 @@ def compliance_notes(row: ProductRow) -> str:
 
 def listing_recommendation(row: ProductRow) -> str:
     notes = compliance_notes(row)
-    if "outcome-guarantee" in notes or "Replace old brand" in notes:
+    if "High-risk compliance terms" in notes or "Old brand term found" in notes:
         return "Fix Before Scaling"
     if "Title contains Chinese" in notes or "Missing" in notes:
         return "Needs SEO Cleanup"

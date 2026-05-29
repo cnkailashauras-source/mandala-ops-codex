@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import csv
 from pathlib import Path
+from typing import Iterable
 
 from .config import get_settings
 from .content_plan import rows as content_rows
@@ -20,31 +21,95 @@ from .seo_rules import (
 
 
 FIELD_ALIASES = {
-    "handle": ["Handle", "handle"],
-    "title": ["Title", "title"],
-    "body_html": ["Body HTML", "Body (HTML)", "descriptionHtml", "body_html"],
-    "vendor": ["Vendor", "vendor"],
+    "handle": ["Handle", "Product Handle", "handle"],
+    "title": ["Title", "Product Title", "title"],
+    "body_html": ["Body HTML", "Body (HTML)", "Description HTML", "descriptionHtml", "body_html"],
+    "vendor": ["Vendor", "Product Vendor", "vendor"],
     "product_type": ["Type", "Product Type", "productType", "product_type"],
-    "tags": ["Tags", "tags"],
-    "status": ["Status", "status"],
-    "sku": ["Variant SKU", "SKU", "sku"],
-    "price": ["Variant Price", "Price", "price"],
-    "image_src": ["Image Src", "Image URL", "image_src"],
-    "image_alt_text": ["Image Alt Text", "Image Alt", "image_alt_text"],
-    "seo_title": ["SEO Title", "Search Engine Listing Title", "seo_title"],
-    "seo_description": ["SEO Description", "Search Engine Listing Description", "seo_description"],
+    "tags": ["Tags", "Product Tags", "tags"],
+    "status": ["Status", "Published", "productStatus", "status"],
+    "sku": ["Variant SKU", "SKU", "Variant: SKU", "sku"],
+    "price": ["Variant Price", "Price", "Variant: Price", "price"],
+    "image_src": ["Image Src", "Image URL", "Image: Src", "image_src"],
+    "image_alt_text": ["Image Alt Text", "Image Alt", "Image: Alt Text", "image_alt_text"],
+    "seo_title": ["SEO Title", "Search Engine Listing Title", "Metafield: title_tag", "seo_title"],
+    "seo_description": [
+        "SEO Description",
+        "Search Engine Listing Description",
+        "Metafield: description_tag",
+        "seo_description",
+    ],
 }
 
 
 def get_value(row: dict[str, str], key: str) -> str:
+    normalized = {name.strip().lower(): value for name, value in row.items()}
     for alias in FIELD_ALIASES[key]:
         if alias in row:
-            return row.get(alias, "")
+            return (row.get(alias, "") or "").strip()
+        value = normalized.get(alias.strip().lower())
+        if value is not None:
+            return (value or "").strip()
     return ""
 
 
 def parse_product(row: dict[str, str]) -> ProductRow:
     return ProductRow(**{key: get_value(row, key) for key in FIELD_ALIASES})
+
+
+def merge_product_rows(rows: Iterable[dict[str, str]]) -> list[ProductRow]:
+    products: dict[str, dict[str, str]] = {}
+    current_handle = ""
+
+    for raw in rows:
+        handle = get_value(raw, "handle") or current_handle
+        if not handle:
+            continue
+        current_handle = handle
+        product = products.setdefault(handle, {"Handle": handle})
+
+        for key, aliases in FIELD_ALIASES.items():
+            existing = get_value(product, key)
+            incoming = get_value(raw, key)
+            if incoming and not existing:
+                product[aliases[0]] = incoming
+
+    return [parse_product(product) for product in products.values()]
+
+
+def recommended_seo_title(rec_title: str) -> str:
+    title = f"{rec_title.split('|')[0].strip()} - Mandala Jewels"
+    return title[:70].rstrip(" -")
+
+
+def audit_rows(input_rows: Iterable[dict[str, str]]) -> list[dict[str, str]]:
+    output = []
+    for product in merge_product_rows(input_rows):
+        rec_title = recommended_title(product)
+        output.append(
+            {
+                "Handle": product.handle,
+                "Command": "UPDATE",
+                "Original Title": product.title,
+                "Original Type": product.product_type,
+                "Original Tags": product.tags,
+                "Original SEO Title": product.seo_title,
+                "Original SEO Description": product.seo_description,
+                "Variant SKU": product.sku,
+                "Variant Price": product.price,
+                "Image Src": product.image_src,
+                "Recommended Title": rec_title,
+                "Recommended SEO Title": recommended_seo_title(rec_title),
+                "Recommended SEO Description": recommended_meta_description(product),
+                "Recommended Product Type": recommended_product_type(product),
+                "Recommended Tags": ", ".join(recommended_tags(product)),
+                "Recommended Image Alt Text": recommended_alt_text(product),
+                "Collection Candidates": ", ".join(collection_candidates(product)),
+                "Listing Recommendation": listing_recommendation(product),
+                "Compliance Notes": compliance_notes(product),
+            }
+        )
+    return output
 
 
 def audit_csv(input_path: Path, output_path: Path) -> None:
@@ -55,7 +120,15 @@ def audit_csv(input_path: Path, output_path: Path) -> None:
 
     output_fields = [
         "Handle",
+        "Command",
         "Original Title",
+        "Original Type",
+        "Original Tags",
+        "Original SEO Title",
+        "Original SEO Description",
+        "Variant SKU",
+        "Variant Price",
+        "Image Src",
         "Recommended Title",
         "Recommended SEO Title",
         "Recommended SEO Description",
@@ -70,24 +143,7 @@ def audit_csv(input_path: Path, output_path: Path) -> None:
     with output_path.open("w", newline="", encoding="utf-8-sig") as f:
         writer = csv.DictWriter(f, fieldnames=output_fields)
         writer.writeheader()
-        for raw in input_rows:
-            product = parse_product(raw)
-            rec_title = recommended_title(product)
-            writer.writerow(
-                {
-                    "Handle": product.handle,
-                    "Original Title": product.title,
-                    "Recommended Title": rec_title,
-                    "Recommended SEO Title": f"{rec_title.split('|')[0].strip()} – Mandala Jewels",
-                    "Recommended SEO Description": recommended_meta_description(product),
-                    "Recommended Product Type": recommended_product_type(product),
-                    "Recommended Tags": ", ".join(recommended_tags(product)),
-                    "Recommended Image Alt Text": recommended_alt_text(product),
-                    "Collection Candidates": ", ".join(collection_candidates(product)),
-                    "Listing Recommendation": listing_recommendation(product),
-                    "Compliance Notes": compliance_notes(product),
-                }
-            )
+        writer.writerows(audit_rows(input_rows))
 
 
 def write_content_plan(output_path: Path) -> None:
