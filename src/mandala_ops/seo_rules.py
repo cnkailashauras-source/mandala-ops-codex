@@ -84,6 +84,7 @@ CRYSTAL_BRACELET_TITLES = [
     ("黑曜紫光水晶手链", "Obsidian Glow Beaded Bracelet | Black & Purple Crystal Jewelry"),
     ("柔雾丁香紫串珠手链", "Soft Lilac Beaded Bracelet | Delicate Purple Crystal Jewelry"),
     ("月影紫水晶串珠手链", "Moonlit Violet Beaded Bracelet | Stackable Crystal Bracelet"),
+    ("暮色紫晶串珠手链", "Twilight Purple Beaded Bracelet | Stackable Purple Jewelry"),
     ("紫晶串珠手链", "Violet Beaded Bracelet | Everyday Purple Crystal Jewelry"),
 ]
 
@@ -307,17 +308,34 @@ def commercial_recommended_title(row: ProductRow) -> str:
     if is_african_green_quartzite(row):
         lowered = product_text(row).lower()
         if any(term in lowered for term in ["earring", "earrings", "耳坠", "耳环"]):
+            if "平安扣" in product_text(row):
+                return "African Green Quartzite Peace Buckle Earrings | Natural Green Stone Jewelry"
+            if "耳钉" in product_text(row):
+                return "African Green Quartzite Stud Earrings | Natural Green Stone Jewelry"
             return "African Green Quartzite Drop Earrings | Natural Green Stone Jewelry"
         if any(term in lowered for term in ["ring", "戒圈", "戒指"]):
             return "African Green Quartzite Ring | Minimal Green Stone Jewelry"
         if any(term in lowered for term in ["bracelet", "beaded", "手串", "手链"]):
             return "African Green Quartzite Beaded Bracelet | Natural Green Stone Jewelry"
+        if "平安扣" in product_text(row):
+            return "African Green Quartzite Peace Buckle Pendant | Natural Green Stone Necklace"
+        if "无事牌" in product_text(row):
+            return "African Green Quartzite Tablet Pendant | Minimal Green Stone Necklace"
+        if "圆珠吊坠" in product_text(row):
+            return "African Green Quartzite Round Bead Pendant | Natural Green Stone Necklace"
         return "African Green Quartzite Pendant | Natural Green Stone Necklace"
 
     if is_crystal_bracelet(row):
-        if "black" in product_text(row).lower() or "黑" in title:
+        lowered = product_text(row).lower()
+        if any(term in lowered for term in ["obsidian", "black"]) or "黑" in title:
             return "Obsidian Glow Beaded Bracelet | Black & Purple Crystal Jewelry"
-        if "lavender" in product_text(row).lower() or "薰衣草" in title:
+        if "twilight" in lowered or "暮色" in title:
+            return "Twilight Purple Beaded Bracelet | Stackable Purple Jewelry"
+        if "moonlit" in lowered or "月影" in title:
+            return "Moonlit Violet Beaded Bracelet | Stackable Crystal Bracelet"
+        if "soft-lilac" in lowered or "soft lilac" in lowered or "柔雾丁香" in title:
+            return "Soft Lilac Beaded Bracelet | Delicate Purple Crystal Jewelry"
+        if "lavender" in lowered or "薰衣草" in title:
             return "Lavender Crystal Beaded Bracelet | Stackable Purple Jewelry"
         return "Violet Beaded Bracelet | Everyday Purple Crystal Jewelry"
 
@@ -441,8 +459,8 @@ def commercial_recommended_meta_description(row: ProductRow) -> str:
         )
     elif category == "African Green Quartzite":
         desc = (
-            "African Green Quartzite jewelry with a natural green stone look, designed "
-            "for everyday outfits, gifting, and polished minimal styling."
+            "African Green Quartzite jewelry with a natural green stone look, using cautious "
+            "quartzite wording for everyday outfits, gifting, and minimal styling."
         )
     elif category == "Excluded Religious Item":
         desc = (

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+from html import escape
 from pathlib import Path
 from typing import Iterable
 
@@ -182,6 +183,60 @@ def audit_csv(input_path: Path, output_path: Path, focus: str = "general") -> No
         writer.writerows(audit_rows(input_rows, focus=focus))
 
 
+def matrixify_update_rows(input_rows: Iterable[dict[str, str]], focus: str = "commercial_jewelry") -> list[dict[str, str]]:
+    rows = []
+    for audit in audit_rows(input_rows, focus=focus):
+        if audit["Priority"] == "Skip":
+            continue
+        description = audit["Recommended SEO Description"]
+        rows.append(
+            {
+                "Handle": audit["Handle"],
+                "Title": audit["Recommended Title"],
+                "Body HTML": f"<p>{escape(description)}</p>",
+                "Type": audit["Recommended Product Type"],
+                "Tags": audit["Recommended Tags"],
+                "SEO Title": audit["Recommended SEO Title"],
+                "SEO Description": description,
+                "Image Alt Text": audit["Recommended Image Alt Text"],
+                "Collection Candidates": audit["Collection Candidates"],
+                "Focus Category": audit["Focus Category"],
+                "Priority": audit["Priority"],
+                "Listing Recommendation": audit["Listing Recommendation"],
+                "Compliance Notes": audit["Compliance Notes"],
+            }
+        )
+    return rows
+
+
+def matrixify_update_template_csv(input_path: Path, output_path: Path, focus: str = "commercial_jewelry") -> None:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with input_path.open("r", newline="", encoding="utf-8-sig") as f:
+        reader = csv.DictReader(f)
+        input_rows = list(reader)
+
+    output_fields = [
+        "Handle",
+        "Title",
+        "Body HTML",
+        "Type",
+        "Tags",
+        "SEO Title",
+        "SEO Description",
+        "Image Alt Text",
+        "Collection Candidates",
+        "Focus Category",
+        "Priority",
+        "Listing Recommendation",
+        "Compliance Notes",
+    ]
+
+    with output_path.open("w", newline="", encoding="utf-8-sig") as f:
+        writer = csv.DictWriter(f, fieldnames=output_fields)
+        writer.writeheader()
+        writer.writerows(matrixify_update_rows(input_rows, focus=focus))
+
+
 def write_content_plan(output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     data = content_rows()
@@ -200,6 +255,11 @@ def main() -> None:
     audit.add_argument("--focus", choices=["general", "commercial_jewelry"], default="general")
     audit.add_argument("--out", default="output/seo_audit.csv")
 
+    matrixify = subparsers.add_parser("matrixify-template", help="Generate a reviewable Matrixify update CSV.")
+    matrixify.add_argument("input_csv")
+    matrixify.add_argument("--focus", choices=["general", "commercial_jewelry"], default="commercial_jewelry")
+    matrixify.add_argument("--out", default="output/matrixify_update_template.csv")
+
     content = subparsers.add_parser("content-plan", help="Generate GEO/SEO content plan CSV.")
     content.add_argument("--out", default="output/content_plan.csv")
 
@@ -209,6 +269,9 @@ def main() -> None:
 
     if args.command == "audit":
         audit_csv(Path(args.input_csv), Path(args.out), focus=args.focus)
+        print(f"Wrote {args.out}")
+    elif args.command == "matrixify-template":
+        matrixify_update_template_csv(Path(args.input_csv), Path(args.out), focus=args.focus)
         print(f"Wrote {args.out}")
     elif args.command == "content-plan":
         write_content_plan(Path(args.out))

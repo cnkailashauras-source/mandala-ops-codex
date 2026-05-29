@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from mandala_ops.cli import audit_csv, audit_rows
+from mandala_ops.cli import audit_csv, audit_rows, matrixify_update_rows
 from mandala_ops.seo_rules import (
     ProductRow,
     compliance_notes,
@@ -138,6 +138,47 @@ class SeoRulesTest(unittest.TestCase):
                 row = next(reader)
                 self.assertEqual(row["Focus Category"], "Crystal Bracelet")
                 self.assertEqual(row["Priority"], "High")
+
+    def test_matrixify_update_template_fields(self):
+        rows = [{"Handle": "violet-beaded-bracelet", "Title": "紫晶串珠手链", "Variant Price": "76"}]
+        output = matrixify_update_rows(rows, focus="commercial_jewelry")
+        self.assertEqual(
+            list(output[0].keys()),
+            [
+                "Handle",
+                "Title",
+                "Body HTML",
+                "Type",
+                "Tags",
+                "SEO Title",
+                "SEO Description",
+                "Image Alt Text",
+                "Collection Candidates",
+                "Focus Category",
+                "Priority",
+                "Listing Recommendation",
+                "Compliance Notes",
+            ],
+        )
+        self.assertEqual(output[0]["Focus Category"], "Crystal Bracelet")
+        self.assertEqual(output[0]["Priority"], "High")
+
+    def test_african_green_quartzite_template_avoids_jade_claims(self):
+        rows = [{"Handle": "green-quartzite-ring", "Title": "石英质玉非洲翠戒圈-1", "Variant Price": "96"}]
+        output = matrixify_update_rows(rows, focus="commercial_jewelry")
+        joined = " ".join(output[0].values())
+        self.assertIn("African Green Quartzite", joined)
+        self.assertNotIn("Jade", joined)
+        self.assertNotIn("jadeite", joined.lower())
+
+    def test_matrixify_update_template_omits_skip_rows(self):
+        rows = [
+            {"Handle": "buddha-bracelet", "Title": "佛牌手串", "Variant Price": "95"},
+            {"Handle": "violet-beaded-bracelet", "Title": "紫晶串珠手链", "Variant Price": "76"},
+        ]
+        output = matrixify_update_rows(rows, focus="commercial_jewelry")
+        self.assertEqual(len(output), 1)
+        self.assertEqual(output[0]["Handle"], "violet-beaded-bracelet")
 
 
 if __name__ == "__main__":
