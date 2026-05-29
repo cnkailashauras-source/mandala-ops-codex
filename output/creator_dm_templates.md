@@ -1,0 +1,41 @@
+# Creator Outreach DM Templates
+
+## TikTok micro creator
+
+Platform: TikTok
+
+Hi {first_name}, I liked your everyday styling videos. Mandala Jewels is seeding a few purple crystal bracelets and African Green Quartzite pieces for creators who enjoy simple outfit details. Would you be open to receiving a gifted piece with no requirement for a positive review? If you share content, please disclose that it was gifted by Mandala Jewels, use #ad when required, and mention any affiliate link or commission if applicable.
+
+Compliance: Please disclose that the item was gifted by Mandala Jewels, use #ad when required, and mention any affiliate link or commission if applicable.
+
+## Instagram styling creator
+
+Platform: Instagram
+
+Hi {first_name}, your minimal outfit styling feels like a lovely fit for Mandala Jewels. We are looking for creators to style a gifted bracelet or green stone jewelry piece in everyday looks. There is no request for a scripted or false review. If you post, please disclose that it was gifted by Mandala Jewels, use #ad when required, and mention any affiliate link or commission if applicable.
+
+Compliance: Please disclose that the item was gifted by Mandala Jewels, use #ad when required, and mention any affiliate link or commission if applicable.
+
+## Pinterest creator
+
+Platform: Pinterest
+
+Hi {first_name}, we are preparing jewelry styling ideas for Pinterest around stackable bracelets, gift jewelry, and natural green stone accessories. Would you be interested in reviewing a gifted Mandala Jewels piece for possible styling content? Any post should disclose that it was gifted by Mandala Jewels, use #ad when required, and mention any affiliate link or commission if applicable.
+
+Compliance: Please disclose that the item was gifted by Mandala Jewels, use #ad when required, and mention any affiliate link or commission if applicable.
+
+## UGC creator
+
+Platform: UGC
+
+Hi {first_name}, Mandala Jewels is looking for UGC creators who can film clean product close-ups, outfit details, and simple styling clips. We can provide a gifted product for review, but we do not ask for false praise or guarantee any earnings. Please disclose that it was gifted by Mandala Jewels, use #ad when required, and mention any affiliate link or commission if applicable.
+
+Compliance: Please disclose that the item was gifted by Mandala Jewels, use #ad when required, and mention any affiliate link or commission if applicable.
+
+## Follow-up message
+
+Platform: Any
+
+Hi {first_name}, just following up on my note about a possible Mandala Jewels gifted product collaboration. No pressure if it is not a fit. If you do choose to share content, please disclose that it was gifted by Mandala Jewels, use #ad when required, and mention any affiliate link or commission if applicable.
+
+Compliance: Please disclose that the item was gifted by Mandala Jewels, use #ad when required, and mention any affiliate link or commission if applicable.

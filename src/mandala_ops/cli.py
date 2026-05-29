@@ -8,6 +8,13 @@ from typing import Iterable
 
 from .config import get_settings
 from .content_plan import rows as content_rows
+from .creator_outreach import (
+    write_dm_template_csv,
+    write_dm_template_markdown,
+    write_seed_template,
+    write_tracker,
+)
+from .exposure_plan import write_channel_plans, write_exposure_plan
 from .seo_rules import (
     ProductRow,
     collection_candidates,
@@ -263,6 +270,19 @@ def main() -> None:
     content = subparsers.add_parser("content-plan", help="Generate GEO/SEO content plan CSV.")
     content.add_argument("--out", default="output/content_plan.csv")
 
+    exposure = subparsers.add_parser("exposure-plan", help="Generate organic content distribution plans.")
+    exposure.add_argument("--input", required=True)
+    exposure.add_argument("--days", type=int, default=30)
+    exposure.add_argument("--out", default="output/active_exposure_calendar.csv")
+    exposure.add_argument("--pinterest-out", default="output/pinterest_pin_plan.csv")
+    exposure.add_argument("--short-video-out", default="output/short_video_script_plan.csv")
+
+    creator = subparsers.add_parser("creator-outreach", help="Generate creator outreach tracking templates.")
+    creator.add_argument("--out", default="output/creator_outreach_tracker.csv")
+    creator.add_argument("--seed-out", default="data/creator_seed_list_template.csv")
+    creator.add_argument("--dm-out", default="output/creator_dm_templates.csv")
+    creator.add_argument("--dm-md-out", default="output/creator_dm_templates.md")
+
     subparsers.add_parser("env-check", help="Check required environment variables.")
 
     args = parser.parse_args()
@@ -276,6 +296,21 @@ def main() -> None:
     elif args.command == "content-plan":
         write_content_plan(Path(args.out))
         print(f"Wrote {args.out}")
+    elif args.command == "exposure-plan":
+        rows = write_exposure_plan(Path(args.input), Path(args.out), days=args.days)
+        write_channel_plans(rows, Path(args.pinterest_out), Path(args.short_video_out))
+        print(f"Wrote {args.out}")
+        print(f"Wrote {args.pinterest_out}")
+        print(f"Wrote {args.short_video_out}")
+    elif args.command == "creator-outreach":
+        write_tracker(Path(args.out))
+        write_seed_template(Path(args.seed_out))
+        write_dm_template_csv(Path(args.dm_out))
+        write_dm_template_markdown(Path(args.dm_md_out))
+        print(f"Wrote {args.out}")
+        print(f"Wrote {args.seed_out}")
+        print(f"Wrote {args.dm_out}")
+        print(f"Wrote {args.dm_md_out}")
     elif args.command == "env-check":
         settings = get_settings()
         print(f"Shopify domain configured: {bool(settings.shopify_shop_domain)}")
