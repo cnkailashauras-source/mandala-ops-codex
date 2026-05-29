@@ -11,6 +11,16 @@ from .seo_rules import (
     ProductRow,
     collection_candidates,
     compliance_notes,
+    commercial_collection_candidates,
+    commercial_compliance_notes,
+    commercial_focus_category,
+    commercial_listing_recommendation,
+    commercial_priority,
+    commercial_recommended_alt_text,
+    commercial_recommended_meta_description,
+    commercial_recommended_product_type,
+    commercial_recommended_tags,
+    commercial_recommended_title,
     recommended_alt_text,
     recommended_meta_description,
     recommended_product_type,
@@ -82,14 +92,38 @@ def recommended_seo_title(rec_title: str) -> str:
     return title[:70].rstrip(" -")
 
 
-def audit_rows(input_rows: Iterable[dict[str, str]]) -> list[dict[str, str]]:
+def audit_rows(input_rows: Iterable[dict[str, str]], focus: str = "general") -> list[dict[str, str]]:
     output = []
     for product in merge_product_rows(input_rows):
-        rec_title = recommended_title(product)
+        if focus == "commercial_jewelry":
+            rec_title = commercial_recommended_title(product)
+            rec_description = commercial_recommended_meta_description(product)
+            rec_product_type = commercial_recommended_product_type(product)
+            rec_tags = commercial_recommended_tags(product)
+            rec_alt_text = commercial_recommended_alt_text(product)
+            collections = commercial_collection_candidates(product)
+            listing = commercial_listing_recommendation(product)
+            notes = commercial_compliance_notes(product)
+            focus_category = commercial_focus_category(product)
+            priority = commercial_priority(product)
+        else:
+            rec_title = recommended_title(product)
+            rec_description = recommended_meta_description(product)
+            rec_product_type = recommended_product_type(product)
+            rec_tags = recommended_tags(product)
+            rec_alt_text = recommended_alt_text(product)
+            collections = collection_candidates(product)
+            listing = listing_recommendation(product)
+            notes = compliance_notes(product)
+            focus_category = "Other"
+            priority = "Low"
+
         output.append(
             {
                 "Handle": product.handle,
                 "Command": "UPDATE",
+                "Focus Category": focus_category,
+                "Priority": priority,
                 "Original Title": product.title,
                 "Original Type": product.product_type,
                 "Original Tags": product.tags,
@@ -100,19 +134,19 @@ def audit_rows(input_rows: Iterable[dict[str, str]]) -> list[dict[str, str]]:
                 "Image Src": product.image_src,
                 "Recommended Title": rec_title,
                 "Recommended SEO Title": recommended_seo_title(rec_title),
-                "Recommended SEO Description": recommended_meta_description(product),
-                "Recommended Product Type": recommended_product_type(product),
-                "Recommended Tags": ", ".join(recommended_tags(product)),
-                "Recommended Image Alt Text": recommended_alt_text(product),
-                "Collection Candidates": ", ".join(collection_candidates(product)),
-                "Listing Recommendation": listing_recommendation(product),
-                "Compliance Notes": compliance_notes(product),
+                "Recommended SEO Description": rec_description,
+                "Recommended Product Type": rec_product_type,
+                "Recommended Tags": ", ".join(rec_tags),
+                "Recommended Image Alt Text": rec_alt_text,
+                "Collection Candidates": ", ".join(collections),
+                "Listing Recommendation": listing,
+                "Compliance Notes": notes,
             }
         )
     return output
 
 
-def audit_csv(input_path: Path, output_path: Path) -> None:
+def audit_csv(input_path: Path, output_path: Path, focus: str = "general") -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with input_path.open("r", newline="", encoding="utf-8-sig") as f:
         reader = csv.DictReader(f)
@@ -121,6 +155,8 @@ def audit_csv(input_path: Path, output_path: Path) -> None:
     output_fields = [
         "Handle",
         "Command",
+        "Focus Category",
+        "Priority",
         "Original Title",
         "Original Type",
         "Original Tags",
@@ -143,7 +179,7 @@ def audit_csv(input_path: Path, output_path: Path) -> None:
     with output_path.open("w", newline="", encoding="utf-8-sig") as f:
         writer = csv.DictWriter(f, fieldnames=output_fields)
         writer.writeheader()
-        writer.writerows(audit_rows(input_rows))
+        writer.writerows(audit_rows(input_rows, focus=focus))
 
 
 def write_content_plan(output_path: Path) -> None:
@@ -161,6 +197,7 @@ def main() -> None:
 
     audit = subparsers.add_parser("audit", help="Generate SEO audit CSV from product export.")
     audit.add_argument("input_csv")
+    audit.add_argument("--focus", choices=["general", "commercial_jewelry"], default="general")
     audit.add_argument("--out", default="output/seo_audit.csv")
 
     content = subparsers.add_parser("content-plan", help="Generate GEO/SEO content plan CSV.")
@@ -171,7 +208,7 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.command == "audit":
-        audit_csv(Path(args.input_csv), Path(args.out))
+        audit_csv(Path(args.input_csv), Path(args.out), focus=args.focus)
         print(f"Wrote {args.out}")
     elif args.command == "content-plan":
         write_content_plan(Path(args.out))
