@@ -13,6 +13,7 @@ from .hyperframes_editor import (
     create_hyperframes_project,
     hyperframes_available,
     list_hyperframes_projects,
+    render_hyperframes_project,
 )
 
 
@@ -199,7 +200,10 @@ def render_hyperframes_studio() -> str:
             剪辑提示词
             <textarea name="prompt" placeholder="写你想要的节奏、时长、字幕、转场、CTA。比如：剪成 15 秒 TikTok 竖版商品短视频..."></textarea>
           </label>
-          <button type="submit">生成 HyperFrames 工程</button>
+          <label>
+            <span><input name="render_now" type="checkbox" value="1" checked style="width:auto"> 生成后直接渲染 MP4</span>
+          </label>
+          <button type="submit">生成并剪辑成片</button>
         </form>
         <div id="result" class="result"></div>
       </section>
@@ -237,18 +241,23 @@ def render_hyperframes_studio() -> str:
       }
       projectsEl.innerHTML = `
         <table>
-          <thead><tr><th>项目</th><th>目录</th><th>更新时间</th></tr></thead>
+          <thead><tr><th>项目</th><th>目录</th><th>MP4</th><th>操作</th><th>更新时间</th></tr></thead>
           <tbody>
             ${payload.projects.map(project => `
               <tr>
                 <td>${project.title}</td>
                 <td>${project.path}</td>
+                <td>${project.output_video ? link(project.output_video) : "未渲染"}</td>
+                <td><button type="button" data-render="${project.id}">渲染 MP4</button></td>
                 <td>${project.updated}</td>
               </tr>
             `).join("")}
           </tbody>
         </table>
       `;
+      document.querySelectorAll("[data-render]").forEach(button => {
+        button.addEventListener("click", () => renderProject(button.dataset.render, button));
+      });
     }
 
     async function refresh() {
@@ -271,6 +280,9 @@ def render_hyperframes_studio() -> str:
         const payload = await response.json();
         if (!response.ok) throw new Error(payload.error || "生成失败");
         resultEl.style.display = "block";
+        const renderBlock = payload.render_result
+          ? `<br>渲染状态：${payload.render_result.status}<br>${payload.render_result.output_video ? "成片：" + link(payload.render_result.output_video) : ""}${payload.render_result.log ? "<br>日志：" + link(payload.render_result.log) : ""}`
+          : "";
         resultEl.innerHTML = `
           <strong>${payload.message}</strong><br>
           工程目录：${payload.project_dir}<br>
@@ -278,8 +290,39 @@ def render_hyperframes_studio() -> str:
           说明：${link(payload.files.readme)}
           <span class="code">${payload.commands.preview}</span>
           <span class="code">${payload.commands.render}</span>
+          ${renderBlock}
         `;
-        showNotice("HyperFrames 工程已生成。复制 preview 命令预览，复制 render 命令导出 MP4。");
+        showNotice(payload.render_result ? payload.render_result.message : "HyperFrames 工程已生成。可以继续点击渲染 MP4。");
+        refresh();
+      } catch (error) {
+        showNotice(error.message, true);
+      } finally {
+        button.disabled = false;
+        button.textContent = original;
+      }
+    }
+
+    async function renderProject(projectId, button) {
+      const original = button.textContent;
+      button.disabled = true;
+      button.textContent = "渲染中";
+      showNotice("正在调用 HyperFrames 渲染 MP4，首次运行可能需要等待 npm 下载依赖...");
+      try {
+        const response = await fetch("/api/render-project", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ project_id: projectId })
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || "渲染失败");
+        resultEl.style.display = "block";
+        resultEl.innerHTML = `
+          <strong>${payload.message}</strong><br>
+          状态：${payload.status}<br>
+          ${payload.output_video ? "成片：" + link(payload.output_video) + "<br>" : ""}
+          ${payload.log ? "日志：" + link(payload.log) : ""}
+        `;
+        showNotice(payload.message);
         refresh();
       } catch (error) {
         showNotice(error.message, true);
@@ -324,9 +367,17 @@ class HyperFramesStudioHandler(BaseHTTPRequestHandler):
             if parsed.path == "/api/create-project":
                 self.send_json(self.create_project_from_form())
                 return
+            if parsed.path == "/api/render-project":
+                payload = self.read_json()
+                self.send_json(render_hyperframes_project(self.server.repo_root, str(payload.get("project_id", ""))))
+                return
             self.send_error(404)
         except Exception as exc:
             self.send_json({"error": str(exc)}, status=400)
+
+    def read_json(self) -> dict[str, object]:
+        length = int(self.headers.get("Content-Length", "0"))
+        return json.loads(self.rfile.read(length) or b"{}")
 
     def create_project_from_form(self) -> dict[str, object]:
         form = cgi.FieldStorage(
@@ -340,6 +391,7 @@ class HyperFramesStudioHandler(BaseHTTPRequestHandler):
         prompt = form.getfirst("prompt", "")
         project_name = form.getfirst("project_name", "")
         aspect_ratio = form.getfirst("aspect_ratio", "9:16")
+        render_now = form.getfirst("render_now", "") == "1"
         raw_media = form["media"] if "media" in form else []
         if not isinstance(raw_media, list):
             raw_media = [raw_media]
@@ -348,7 +400,11 @@ class HyperFramesStudioHandler(BaseHTTPRequestHandler):
             for item in raw_media
             if getattr(item, "filename", "")
         ]
-        return create_hyperframes_project(self.server.repo_root, uploads, prompt, project_name, aspect_ratio)
+        result = create_hyperframes_project(self.server.repo_root, uploads, prompt, project_name, aspect_ratio)
+        if render_now:
+            result["render_result"] = render_hyperframes_project(self.server.repo_root, str(result["project_id"]))
+            result["message"] = "HyperFrames project created and render was attempted."
+        return result
 
     def log_message(self, format: str, *args: object) -> None:
         return
@@ -380,8 +436,9 @@ class HyperFramesStudioHandler(BaseHTTPRequestHandler):
             self.send_error(404)
             return
         body = file_path.read_bytes()
+        content_type = "video/mp4" if file_path.suffix.lower() == ".mp4" else "text/plain; charset=utf-8"
         self.send_response(200)
-        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_header("Content-Type", content_type)
         self.send_header("Content-Disposition", f'attachment; filename="{file_path.name}"')
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()

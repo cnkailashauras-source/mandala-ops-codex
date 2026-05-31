@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 import shutil
+import subprocess
 from dataclasses import dataclass
 from datetime import datetime
 from html import escape
@@ -257,9 +258,9 @@ def write_project_files(
 
     package = {
         "scripts": {
-            "preview": "npx hyperframes preview comp.html",
-            "lint": "npx hyperframes lint comp.html",
-            "render": "npx hyperframes render comp.html --output output.mp4",
+            "preview": "npx --yes hyperframes preview comp.html",
+            "lint": "npx --yes hyperframes lint comp.html",
+            "render": "npx --yes hyperframes render comp.html --output output.mp4",
         },
         "devDependencies": {"hyperframes": "latest"},
     }
@@ -285,13 +286,13 @@ def write_project_files(
                 "## Preview",
                 "",
                 "```powershell",
-                "npx hyperframes preview comp.html",
+                "npx --yes hyperframes preview comp.html",
                 "```",
                 "",
                 "## Render MP4",
                 "",
                 "```powershell",
-                "npx hyperframes render comp.html --output output.mp4",
+                "npx --yes hyperframes render comp.html --output output.mp4",
                 "```",
                 "",
                 "## Editing Prompt",
@@ -338,11 +339,72 @@ def create_hyperframes_project(
         "message": "HyperFrames project created.",
         "files": relative_files,
         "commands": {
-            "preview": f"cd {relative_project} && npx hyperframes preview comp.html",
-            "render": f"cd {relative_project} && npx hyperframes render comp.html --output output.mp4",
-            "lint": f"cd {relative_project} && npx hyperframes lint comp.html",
+            "preview": f"cd {relative_project} && npx --yes hyperframes preview comp.html",
+            "render": f"cd {relative_project} && npx --yes hyperframes render comp.html --output output.mp4",
+            "lint": f"cd {relative_project} && npx --yes hyperframes lint comp.html",
         },
     }
+
+
+def project_dir_from_id(root: Path, project_id: str) -> Path:
+    if not re.fullmatch(r"[a-zA-Z0-9_-]+", project_id):
+        raise ValueError("Invalid HyperFrames project id.")
+    project_dir = root / "output/hyperframes_projects" / project_id
+    if not project_dir.exists() or not project_dir.is_dir():
+        raise ValueError(f"HyperFrames project not found: {project_id}")
+    return project_dir
+
+
+def render_hyperframes_project(root: Path, project_id: str, timeout_seconds: int = 600) -> dict[str, object]:
+    project_dir = project_dir_from_id(root, project_id)
+    npx = shutil.which("npx")
+    if not npx:
+        return {
+            "project_id": project_id,
+            "status": "Missing npx",
+            "message": "Node / npx is not available, so MP4 rendering cannot run.",
+            "output_video": "",
+        }
+
+    output_path = project_dir / "output.mp4"
+    log_path = project_dir / "render_log.txt"
+    command = [npx, "--yes", "hyperframes", "render", "comp.html", "--output", "output.mp4"]
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=project_dir,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=timeout_seconds,
+            check=False,
+        )
+        log_path.write_text(completed.stdout or "", encoding="utf-8")
+        if completed.returncode != 0 or not output_path.exists():
+            return {
+                "project_id": project_id,
+                "status": "Render Failed",
+                "message": "HyperFrames render failed. The project was saved, and the render log is available.",
+                "output_video": "",
+                "log": log_path.relative_to(root).as_posix(),
+                "return_code": completed.returncode,
+            }
+        return {
+            "project_id": project_id,
+            "status": "Rendered",
+            "message": "MP4 render completed.",
+            "output_video": output_path.relative_to(root).as_posix(),
+            "log": log_path.relative_to(root).as_posix(),
+        }
+    except subprocess.TimeoutExpired as exc:
+        log_path.write_text(exc.stdout or "Render timed out.", encoding="utf-8")
+        return {
+            "project_id": project_id,
+            "status": "Render Timeout",
+            "message": "HyperFrames render timed out. Try rendering this project manually from the terminal.",
+            "output_video": "",
+            "log": log_path.relative_to(root).as_posix(),
+        }
 
 
 def list_hyperframes_projects(root: Path) -> list[dict[str, str]]:
@@ -365,6 +427,10 @@ def list_hyperframes_projects(root: Path) -> list[dict[str, str]]:
                 "id": path.name,
                 "title": title,
                 "path": path.relative_to(root).as_posix(),
+                "output_video": (path / "output.mp4").relative_to(root).as_posix() if (path / "output.mp4").exists() else "",
+                "render_log": (path / "render_log.txt").relative_to(root).as_posix()
+                if (path / "render_log.txt").exists()
+                else "",
                 "updated": datetime.fromtimestamp(path.stat().st_mtime).strftime("%Y-%m-%d %H:%M"),
             }
         )
