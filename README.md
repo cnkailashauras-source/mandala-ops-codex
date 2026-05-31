@@ -50,6 +50,31 @@ http://127.0.0.1:8790/
 
 Creative Studio 会围绕商品生成 GPT Image 生图任务、Kling 生视频任务、剪映 / HyperFrames 剪辑任务和素材审核表。它当前只生成任务表和 prompt，不会自动调用外部平台。
 
+## Codex + HyperFrames 自动剪辑
+
+如果你已经有 GPT Image 2 生成图或 Kling 可灵视频片段，启动 HyperFrames 工作台：
+
+```powershell
+cd C:\Users\Administrator\Documents\Codex\2026-05-29\files-mentioned-by-the-user-mandala\mandala-ops-codex-repo
+$env:PYTHONPATH="src"
+python -m mandala_ops.cli hyperframes-studio
+```
+
+然后打开：
+
+```text
+http://127.0.0.1:8792/
+```
+
+使用方式：
+
+1. 上传图片或视频片段
+2. 输入剪辑提示词
+3. 生成 HyperFrames 工程
+4. 在生成目录里运行 `npx hyperframes preview comp.html` 预览
+5. 运行 `npx hyperframes render comp.html --output output.mp4` 导出 MP4
+6. 把 MP4 放进剪映做最后人工微调
+
 ## 常用命令
 
 ```powershell
