@@ -8,6 +8,7 @@ from typing import Iterable
 
 from .config import get_settings
 from .content_plan import rows as content_rows
+from .creative_brief import write_creative_plan
 from .creator_outreach import (
     write_dm_template_csv,
     write_dm_template_markdown,
@@ -283,6 +284,13 @@ def main() -> None:
     creator.add_argument("--dm-out", default="output/creator_dm_templates.csv")
     creator.add_argument("--dm-md-out", default="output/creator_dm_templates.md")
 
+    creative = subparsers.add_parser("creative-plan", help="Generate AI image, video, edit, and review job tables.")
+    creative.add_argument("--input", default="output/active_exposure_calendar.csv")
+    creative.add_argument("--image-out", default="output/ai_image_generation_jobs.csv")
+    creative.add_argument("--video-out", default="output/ai_video_generation_jobs.csv")
+    creative.add_argument("--edit-out", default="output/auto_edit_plan.csv")
+    creative.add_argument("--review-out", default="output/creative_asset_review_tracker.csv")
+
     subparsers.add_parser("env-check", help="Check required environment variables.")
 
     args = parser.parse_args()
@@ -311,6 +319,18 @@ def main() -> None:
         print(f"Wrote {args.seed_out}")
         print(f"Wrote {args.dm_out}")
         print(f"Wrote {args.dm_md_out}")
+    elif args.command == "creative-plan":
+        write_creative_plan(
+            Path(args.input),
+            Path(args.image_out),
+            Path(args.video_out),
+            Path(args.edit_out),
+            Path(args.review_out),
+        )
+        print(f"Wrote {args.image_out}")
+        print(f"Wrote {args.video_out}")
+        print(f"Wrote {args.edit_out}")
+        print(f"Wrote {args.review_out}")
     elif args.command == "env-check":
         settings = get_settings()
         print(f"Shopify domain configured: {bool(settings.shopify_shop_domain)}")
