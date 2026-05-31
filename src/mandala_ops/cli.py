@@ -291,6 +291,11 @@ def main() -> None:
     creative.add_argument("--edit-out", default="output/auto_edit_plan.csv")
     creative.add_argument("--review-out", default="output/creative_asset_review_tracker.csv")
 
+    workbench = subparsers.add_parser("workbench", help="Start the local Mandala Ops browser workbench.")
+    workbench.add_argument("--host", default="127.0.0.1")
+    workbench.add_argument("--port", type=int, default=8787)
+    workbench.add_argument("--no-browser", action="store_true")
+
     subparsers.add_parser("env-check", help="Check required environment variables.")
 
     args = parser.parse_args()
@@ -331,6 +336,10 @@ def main() -> None:
         print(f"Wrote {args.video_out}")
         print(f"Wrote {args.edit_out}")
         print(f"Wrote {args.review_out}")
+    elif args.command == "workbench":
+        from .workbench import serve_workbench
+
+        serve_workbench(host=args.host, port=args.port, open_browser=not args.no_browser)
     elif args.command == "env-check":
         settings = get_settings()
         print(f"Shopify domain configured: {bool(settings.shopify_shop_domain)}")
