@@ -296,6 +296,11 @@ def main() -> None:
     workbench.add_argument("--port", type=int, default=8787)
     workbench.add_argument("--no-browser", action="store_true")
 
+    studio = subparsers.add_parser("creative-studio", help="Start the Mandala social creative production studio.")
+    studio.add_argument("--host", default="127.0.0.1")
+    studio.add_argument("--port", type=int, default=8790)
+    studio.add_argument("--no-browser", action="store_true")
+
     subparsers.add_parser("env-check", help="Check required environment variables.")
 
     args = parser.parse_args()
@@ -340,6 +345,10 @@ def main() -> None:
         from .workbench import serve_workbench
 
         serve_workbench(host=args.host, port=args.port, open_browser=not args.no_browser)
+    elif args.command == "creative-studio":
+        from .creative_studio import serve_creative_studio
+
+        serve_creative_studio(host=args.host, port=args.port, open_browser=not args.no_browser)
     elif args.command == "env-check":
         settings = get_settings()
         print(f"Shopify domain configured: {bool(settings.shopify_shop_domain)}")

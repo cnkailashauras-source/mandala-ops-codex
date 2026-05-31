@@ -32,6 +32,24 @@ http://127.0.0.1:8787/
 
 这个工作台只运行本地 CSV 流程，不连接 Shopify API，不修改线上商品，不自动发布内容，不自动联系达人，也不调用外部 AI 生成接口。
 
+## Mandala Creative Studio
+
+如果当前重点是社媒内容生产，而不是 Shopify 商品内容优化，启动这个工作台：
+
+```powershell
+cd C:\Users\Administrator\Documents\Codex\2026-05-29\files-mentioned-by-the-user-mandala\mandala-ops-codex-repo
+$env:PYTHONPATH="src"
+python -m mandala_ops.cli creative-studio
+```
+
+然后打开：
+
+```text
+http://127.0.0.1:8790/
+```
+
+Creative Studio 会围绕商品生成 GPT Image 生图任务、Kling 生视频任务、剪映 / HyperFrames 剪辑任务和素材审核表。它当前只生成任务表和 prompt，不会自动调用外部平台。
+
 ## 常用命令
 
 ```powershell
