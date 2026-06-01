@@ -3,7 +3,7 @@ name = "mandala-ops-codex-starter"
 version = "0.1.0"
 description = "Codex-ready ecommerce operations automation starter for Mandala Jewels."
 requires-python = ">=3.10"
-dependencies = ["requests>=2.31.0"]
+dependencies = ["requests>=2.31.0", "imageio-ffmpeg>=0.5.1"]
 
 [build-system]
 requires = ["setuptools>=68"]

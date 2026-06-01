@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from html import escape
 from pathlib import Path
+from typing import Any
 
 
 MEDIA_EXTENSIONS = {".mp4", ".mov", ".m4v", ".webm", ".png", ".jpg", ".jpeg", ".webp"}
@@ -100,13 +101,13 @@ def media_tracks(assets: list[dict[str, str]], duration: int) -> str:
             continue
         if asset["type"] == "video":
             tag = (
-                f'<video class="media media-{index % 3}" src="{escape(asset["path"])}" '
-                f'data-start="{start}" data-duration="{length}" autoplay muted playsinline></video>'
+                f'<video id="media-{index + 1}" class="clip media media-{index % 3}" src="{escape(asset["path"])}" '
+                f'data-start="{start}" data-duration="{length}" data-track-index="0" autoplay muted playsinline></video>'
             )
         else:
             tag = (
-                f'<img class="media media-{index % 3}" src="{escape(asset["path"])}" '
-                f'data-start="{start}" data-duration="{length}" alt="">'
+                f'<img id="media-{index + 1}" class="clip media media-{index % 3}" src="{escape(asset["path"])}" '
+                f'data-start="{start}" data-duration="{length}" data-track-index="0" alt="">'
             )
         tracks.append(tag)
     return "\n      ".join(tracks)
@@ -119,7 +120,7 @@ def caption_tracks(lines: list[str], duration: int) -> str:
     for index, line in enumerate(lines):
         start = round(min(starts[index], max(0, duration - 2.2)), 2)
         tracks.append(
-            f'<div class="caption caption-{index}" data-start="{start}" data-duration="{length}" '
+            f'<div id="caption-{index + 1}" class="clip caption caption-{index}" data-start="{start}" data-duration="{length}" '
             f'data-fade="in out">{escape(line)}</div>'
         )
     return "\n      ".join(tracks)
@@ -228,16 +229,25 @@ def render_composition_html(
   </style>
 </head>
 <body>
-  <div class="composition" data-width="{width}" data-height="{height}" data-duration="{duration}" data-fps="30">
+  <div id="root" class="composition" data-composition-id="root" data-start="0" data-width="{width}" data-height="{height}" data-fps="30">
       {media_tracks(assets, duration)}
-      <div class="veil" data-start="0" data-duration="{duration}"></div>
-      <div class="brand" data-start="0" data-duration="{duration}">Mandala Jewels</div>
-      <div class="caption caption-hero" data-start="0.2" data-duration="2.6" data-fade="in out">{escape(headline)}</div>
+      <div id="veil" class="clip veil" data-start="0" data-duration="{duration}"></div>
+      <div id="brand" class="clip brand" data-start="0" data-duration="{duration}">Mandala Jewels</div>
+      <div id="headline" class="clip caption caption-hero" data-start="0.2" data-duration="2.6" data-fade="in out">{escape(headline)}</div>
       {caption_tracks(captions, duration)}
-      <div class="cta" data-start="{max(0, duration - 3)}" data-duration="3" data-fade="in">
+      <div id="cta" class="clip cta" data-start="{max(0, duration - 3)}" data-duration="3" data-fade="in">
         <span class="pill">Save the styling idea</span>
         <span>@mandalajewels</span>
       </div>
+      <div id="timeline-end" style="opacity:0; position:absolute; width:1px; height:1px;"></div>
+      <script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/gsap.min.js"></script>
+      <script>
+        const tl = gsap.timeline({{ paused: true }});
+        tl.set("#root", {{ opacity: 1 }}, 0);
+        tl.to("#timeline-end", {{ opacity: 1, duration: 0.01 }}, {duration});
+        window.__timelines = window.__timelines || {{}};
+        window.__timelines["root"] = tl;
+      </script>
   </div>
 </body>
 </html>
@@ -258,9 +268,9 @@ def write_project_files(
 
     package = {
         "scripts": {
-            "preview": "npx --yes hyperframes preview comp.html",
-            "lint": "npx --yes hyperframes lint comp.html",
-            "render": "npx --yes hyperframes render comp.html --output output.mp4",
+            "preview": "npx --yes hyperframes preview .",
+            "lint": "npx --yes hyperframes lint .",
+            "render": "npx --yes hyperframes render . --output output.mp4",
         },
         "devDependencies": {"hyperframes": "latest"},
     }
@@ -286,13 +296,13 @@ def write_project_files(
                 "## Preview",
                 "",
                 "```powershell",
-                "npx --yes hyperframes preview comp.html",
+                "npx --yes hyperframes preview .",
                 "```",
                 "",
                 "## Render MP4",
                 "",
                 "```powershell",
-                "npx --yes hyperframes render comp.html --output output.mp4",
+                "npx --yes hyperframes render . --output output.mp4",
                 "```",
                 "",
                 "## Editing Prompt",
@@ -339,9 +349,9 @@ def create_hyperframes_project(
         "message": "HyperFrames project created.",
         "files": relative_files,
         "commands": {
-            "preview": f"cd {relative_project} && npx --yes hyperframes preview comp.html",
-            "render": f"cd {relative_project} && npx --yes hyperframes render comp.html --output output.mp4",
-            "lint": f"cd {relative_project} && npx --yes hyperframes lint comp.html",
+            "preview": f"cd {relative_project} && npx --yes hyperframes preview .",
+            "render": f"cd {relative_project} && npx --yes hyperframes render . --output output.mp4",
+            "lint": f"cd {relative_project} && npx --yes hyperframes lint .",
         },
     }
 
@@ -357,6 +367,7 @@ def project_dir_from_id(root: Path, project_id: str) -> Path:
 
 def render_hyperframes_project(root: Path, project_id: str, timeout_seconds: int = 600) -> dict[str, object]:
     project_dir = project_dir_from_id(root, project_id)
+    refresh_project_files(project_dir)
     npx = shutil.which("npx")
     if not npx:
         return {
@@ -365,21 +376,24 @@ def render_hyperframes_project(root: Path, project_id: str, timeout_seconds: int
             "message": "Node / npx is not available, so MP4 rendering cannot run.",
             "output_video": "",
         }
-
     output_path = project_dir / "output.mp4"
     log_path = project_dir / "render_log.txt"
-    command = [npx, "--yes", "hyperframes", "render", "comp.html", "--output", "output.mp4"]
+    command = [npx, "--yes", "hyperframes", "render", ".", "--output", "output.mp4"]
+    env = render_environment(root)
     try:
         completed = subprocess.run(
             command,
             cwd=project_dir,
+            env=env,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             timeout=timeout_seconds,
             check=False,
         )
-        log_path.write_text(completed.stdout or "", encoding="utf-8")
+        log_path.write_text(render_log_header(command, project_dir, env) + (completed.stdout or ""), encoding="utf-8")
         if completed.returncode != 0 or not output_path.exists():
             return {
                 "project_id": project_id,
@@ -397,7 +411,10 @@ def render_hyperframes_project(root: Path, project_id: str, timeout_seconds: int
             "log": log_path.relative_to(root).as_posix(),
         }
     except subprocess.TimeoutExpired as exc:
-        log_path.write_text(exc.stdout or "Render timed out.", encoding="utf-8")
+        stdout = exc.stdout or "Render timed out."
+        if isinstance(stdout, bytes):
+            stdout = stdout.decode("utf-8", errors="ignore")
+        log_path.write_text(render_log_header(command, project_dir, env) + stdout, encoding="utf-8")
         return {
             "project_id": project_id,
             "status": "Render Timeout",
@@ -405,6 +422,27 @@ def render_hyperframes_project(root: Path, project_id: str, timeout_seconds: int
             "output_video": "",
             "log": log_path.relative_to(root).as_posix(),
         }
+
+
+def refresh_project_files(project_dir: Path) -> None:
+    manifest_path = project_dir / "hyperframes_job.json"
+    if not manifest_path.exists():
+        return
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return
+    assets = manifest.get("assets") or []
+    if not isinstance(assets, list):
+        return
+    write_project_files(
+        project_dir,
+        str(manifest.get("project_name") or project_dir.name),
+        assets,
+        str(manifest.get("prompt") or ""),
+        str(manifest.get("aspect_ratio") or "9:16"),
+        int(manifest.get("duration_seconds") or 15),
+    )
 
 
 def list_hyperframes_projects(root: Path) -> list[dict[str, str]]:
@@ -440,8 +478,80 @@ def list_hyperframes_projects(root: Path) -> list[dict[str, str]]:
 def hyperframes_available() -> dict[str, str | bool]:
     node = shutil.which("node")
     npx = shutil.which("npx")
+    ffmpeg = find_ffmpeg()
+    ffprobe = find_ffprobe()
     return {
         "node": node or "",
         "npx": npx or "",
-        "ready": bool(node and npx),
+        "ffmpeg": ffmpeg or "",
+        "ffprobe": ffprobe or "",
+        "ready": bool(node and npx and ffmpeg and ffprobe),
     }
+
+
+def find_ffmpeg() -> str | None:
+    ffmpeg = find_executable("ffmpeg.exe")
+    if ffmpeg:
+        return ffmpeg
+    try:
+        import imageio_ffmpeg
+
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        return None
+
+
+def find_ffprobe() -> str | None:
+    return find_executable("ffprobe.exe")
+
+
+def find_executable(name: str) -> str | None:
+    command = shutil.which(Path(name).stem)
+    if command:
+        return command
+    local = __import__("os").environ.get("LOCALAPPDATA")
+    if not local:
+        return None
+    packages = Path(local) / "Microsoft/WinGet/Packages"
+    if not packages.exists():
+        return None
+    matches = sorted(packages.glob(f"**/{name}"), key=lambda path: path.stat().st_mtime, reverse=True)
+    return str(matches[0]) if matches else None
+
+
+def render_environment(root: Path | None = None) -> dict[str, str]:
+    env = dict(__import__("os").environ)
+    ffmpeg = find_ffmpeg()
+    ffprobe = find_ffprobe()
+    if ffprobe:
+        env["PATH"] = str(Path(ffprobe).parent) + __import__("os").pathsep + env.get("PATH", "")
+    if ffmpeg:
+        ffmpeg_path = Path(ffmpeg)
+        if not ffmpeg_path.exists():
+            return env
+        if ffmpeg_path.name.lower() != "ffmpeg.exe" and root:
+            shim_dir = root / "output/runtime/ffmpeg"
+            shim_dir.mkdir(parents=True, exist_ok=True)
+            shim_path = shim_dir / "ffmpeg.exe"
+            if not shim_path.exists() or shim_path.stat().st_size != ffmpeg_path.stat().st_size:
+                shutil.copy2(ffmpeg_path, shim_path)
+            ffmpeg_dir = str(shim_dir)
+        else:
+            ffmpeg_dir = str(ffmpeg_path.parent)
+        env["PATH"] = ffmpeg_dir + __import__("os").pathsep + env.get("PATH", "")
+    return env
+
+
+def render_log_header(command: list[str], project_dir: Path, env: dict[str, Any]) -> str:
+    return "\n".join(
+        [
+            f"Command: {' '.join(command)}",
+            f"Working directory: {project_dir}",
+            f"FFmpeg: {find_ffmpeg() or 'not found'}",
+            f"FFprobe: {find_ffprobe() or 'not found'}",
+            f"PATH begins: {env.get('PATH', '')[:300]}",
+            "",
+            "---- HyperFrames output ----",
+            "",
+        ]
+    )
