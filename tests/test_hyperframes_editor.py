@@ -36,6 +36,9 @@ class HyperFramesEditorTest(unittest.TestCase):
         self.assertIn("data-start", html)
         self.assertIn('class="clip media', html)
         self.assertIn('data-composition-id="root"', html)
+        self.assertIn('class="clip transition', html)
+        self.assertIn('id="light-leak"', html)
+        self.assertIn("gsap.timeline", html)
         self.assertNotIn("Mandala Jewels", html)
         self.assertNotIn("Save the styling idea", html)
         self.assertNotIn("@mandalajewels", html)
@@ -55,11 +58,31 @@ class HyperFramesEditorTest(unittest.TestCase):
                 "9:16",
             )
             project_dir = root / result["project_dir"]
-            self.assertTrue((project_dir / "comp.html").exists())
+            self.assertTrue((project_dir / "index.html").exists())
+            self.assertFalse((project_dir / "comp.html").exists())
             self.assertTrue((project_dir / "package.json").exists())
+            self.assertTrue((project_dir / "assets" / "auto_soft_beat.wav").exists())
+            html = (project_dir / "index.html").read_text(encoding="utf-8")
+            self.assertIn("<audio", html)
+            self.assertIn("auto_soft_beat.wav", html)
             self.assertIn("npx --yes hyperframes preview", result["commands"]["preview"])
             self.assertIn("npx --yes hyperframes render", result["commands"]["render"])
             self.assertEqual(len(list_hyperframes_projects(root)), 1)
+
+    def test_prompt_can_disable_auto_music(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            result = create_hyperframes_project(
+                root,
+                [UploadedMedia("product.jpg", b"fake image bytes")],
+                "15 second product edit no music",
+                "Silent Test",
+                "9:16",
+            )
+            project_dir = root / result["project_dir"]
+            html = (project_dir / "index.html").read_text(encoding="utf-8")
+            self.assertNotIn("<audio", html)
+            self.assertFalse((project_dir / "assets" / "auto_soft_beat.wav").exists())
 
     def test_render_project_returns_mp4_when_hyperframes_succeeds(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -93,6 +116,7 @@ class HyperFramesEditorTest(unittest.TestCase):
         self.assertIn("Kling", html)
         self.assertIn("剪映", html)
         self.assertIn("生成 HyperFrames 工程", html)
+        self.assertIn("audio/*", html)
         self.assertIn("render_now", html)
         self.assertIn("/api/render-project", html)
 

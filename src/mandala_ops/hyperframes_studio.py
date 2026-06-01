@@ -159,9 +159,9 @@ def render_hyperframes_studio() -> str:
         <ol>
           <li>GPT Image 2 生成商品图片。</li>
           <li>Kling 可灵把图片生成 3-5 秒视频片段。</li>
-          <li>这里上传图片 / 视频片段并输入剪辑要求。</li>
-          <li>Codex 生成 HyperFrames 工程。</li>
-          <li>运行 preview / render 导出 MP4。</li>
+          <li>这里上传图片 / 视频片段 / 可选音乐，并输入剪辑要求。</li>
+          <li>Codex 生成带节奏分段、转场、自动运镜和配乐轨的 HyperFrames 工程。</li>
+          <li>直接 render 导出 MP4。</li>
           <li>剪映做最后人工微调。</li>
         </ol>
       </section>
@@ -171,7 +171,7 @@ def render_hyperframes_studio() -> str:
       </section>
       <section class="panel">
         <h2>提示词模板</h2>
-        <p>剪成 15 秒 TikTok 竖版商品短视频。开头 2 秒用产品近景做 hook，中间展示佩戴和叠戴细节，最后保持干净画面。不要字幕、不要水印、不要品牌文字，文字后期在剪映里人工添加。</p>
+        <p>剪成 15 秒 TikTok 竖版商品短视频。开头 2 秒用产品近景做 hook，中间展示佩戴和叠戴细节，自动加柔和转场、轻微闪白、慢推拉运镜和背景音乐。不要字幕、不要水印、不要品牌文字，文字后期在剪映里人工添加。</p>
       </section>
     </aside>
     <section class="stack">
@@ -185,7 +185,7 @@ def render_hyperframes_studio() -> str:
           </label>
           <label>
             上传素材
-            <input name="media" type="file" accept="video/*,image/*" multiple required>
+            <input name="media" type="file" accept="video/*,image/*,audio/*,.mp3,.wav,.m4a,.aac" multiple required>
           </label>
           <label>
             视频比例

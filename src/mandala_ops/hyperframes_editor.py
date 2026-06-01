@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 import shutil
 import subprocess
+import wave
 from dataclasses import dataclass
 from datetime import datetime
 from html import escape
@@ -11,8 +13,22 @@ from pathlib import Path
 from typing import Any
 
 
-MEDIA_EXTENSIONS = {".mp4", ".mov", ".m4v", ".webm", ".png", ".jpg", ".jpeg", ".webp"}
+MEDIA_EXTENSIONS = {
+    ".mp4",
+    ".mov",
+    ".m4v",
+    ".webm",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".webp",
+    ".mp3",
+    ".wav",
+    ".m4a",
+    ".aac",
+}
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".m4v", ".webm"}
+AUDIO_EXTENSIONS = {".mp3", ".wav", ".m4a", ".aac"}
 
 
 @dataclass(frozen=True)
@@ -60,14 +76,20 @@ def save_media(project_dir: Path, uploads: list[UploadedMedia]) -> list[dict[str
         path = assets_dir / name
         path.write_bytes(upload.content)
         suffix = path.suffix.lower()
+        if suffix in AUDIO_EXTENSIONS:
+            media_type = "audio"
+        elif suffix in VIDEO_EXTENSIONS:
+            media_type = "video"
+        else:
+            media_type = "image"
         assets.append(
             {
                 "filename": name,
                 "path": f"assets/{name}",
-                "type": "video" if suffix in VIDEO_EXTENSIONS else "image",
+                "type": media_type,
             }
         )
-    if not assets:
+    if not [asset for asset in assets if asset["type"] in {"image", "video"}]:
         raise ValueError("Please upload at least one image or video asset.")
     return assets
 
@@ -80,26 +102,165 @@ def headline_from_prompt(prompt: str) -> str:
     return first[:72] or "Mandala Jewels"
 
 
+def visual_assets(assets: list[dict[str, str]]) -> list[dict[str, str]]:
+    return [asset for asset in assets if asset["type"] in {"image", "video"}]
+
+
+def audio_assets(assets: list[dict[str, str]]) -> list[dict[str, str]]:
+    return [asset for asset in assets if asset["type"] == "audio"]
+
+
+def wants_auto_music(prompt: str) -> bool:
+    lowered = prompt.lower()
+    blocked = ["不要音乐", "无音乐", "no music", "without music", "mute", "silent"]
+    return not any(item in lowered for item in blocked)
+
+
+def scene_count_for(duration: int, asset_count: int) -> int:
+    target = max(5, min(9, round(duration / 2)))
+    return max(target, min(asset_count, 9))
+
+
+def scene_plan(assets: list[dict[str, str]], duration: int) -> list[dict[str, object]]:
+    visuals = visual_assets(assets)
+    count = scene_count_for(duration, len(visuals))
+    overlap = 0.42
+    base_slot = duration / count
+    plan: list[dict[str, object]] = []
+    for index in range(count):
+        start = round(index * base_slot, 2)
+        next_start = duration if index == count - 1 else (index + 1) * base_slot
+        length = round(max(1.2, next_start - start + (overlap if index < count - 1 else 0)), 2)
+        plan.append(
+            {
+                "index": index,
+                "asset": visuals[index % len(visuals)],
+                "start": start,
+                "duration": min(length, round(duration - start, 2)),
+                "entrance": ["soft", "slide-left", "slide-right", "push-in"][index % 4],
+                "crop": index % 5,
+            }
+        )
+    return plan
+
+
 def media_tracks(assets: list[dict[str, str]], duration: int) -> str:
-    slot = max(2.5, duration / max(len(assets), 1))
     tracks = []
-    for index, asset in enumerate(assets):
-        start = round(index * slot, 2)
-        length = round(min(slot + 0.35, duration - start), 2)
+    for item in scene_plan(assets, duration):
+        index = int(item["index"])
+        asset = item["asset"]
+        start = item["start"]
+        length = item["duration"]
         if length <= 0:
             continue
+        classes = f'clip media media-{index % 3} crop-{item["crop"]} entrance-{item["entrance"]}'
         if asset["type"] == "video":
             tag = (
-                f'<video id="media-{index + 1}" class="clip media media-{index % 3}" src="{escape(asset["path"])}" '
-                f'data-start="{start}" data-duration="{length}" data-track-index="0" autoplay muted playsinline></video>'
+                f'<video id="media-{index + 1}" class="{classes}" src="{escape(asset["path"])}" '
+                f'data-start="{start}" data-duration="{length}" data-track-index="{index}" autoplay muted playsinline></video>'
             )
         else:
             tag = (
-                f'<img id="media-{index + 1}" class="clip media media-{index % 3}" src="{escape(asset["path"])}" '
-                f'data-start="{start}" data-duration="{length}" data-track-index="0" alt="">'
+                f'<img id="media-{index + 1}" class="{classes}" src="{escape(asset["path"])}" '
+                f'data-start="{start}" data-duration="{length}" data-track-index="{index}" alt="">'
             )
         tracks.append(tag)
     return "\n      ".join(tracks)
+
+
+def transition_tracks(duration: int, count: int) -> str:
+    if count <= 1:
+        return ""
+    slot = duration / count
+    tracks = []
+    for index in range(1, count):
+        start = round(max(0, index * slot - 0.24), 2)
+        tracks.append(
+            f'<div id="transition-{index}" class="clip transition transition-{index % 3}" '
+            f'data-start="{start}" data-duration="0.5" data-track-index="{20 + index}"></div>'
+        )
+    return "\n      ".join(tracks)
+
+
+def ambient_tracks(duration: int) -> str:
+    return "\n      ".join(
+        [
+            f'<div id="grain" class="clip grain" data-start="0" data-duration="{duration}" data-track-index="30"></div>',
+            f'<div id="light-leak" class="clip light-leak" data-start="0" data-duration="{duration}" data-track-index="31"></div>',
+        ]
+    )
+
+
+def music_track(assets: list[dict[str, str]], duration: int) -> str:
+    audios = audio_assets(assets)
+    if not audios:
+        return ""
+    src = escape(audios[0]["path"])
+    return (
+        f'<audio id="bgm" class="clip bgm" src="{src}" data-start="0" '
+        f'data-duration="{duration}" data-track-index="40" data-volume="0.22"></audio>'
+    )
+
+
+def timeline_script(duration: int, count: int) -> str:
+    lines = [
+        "const tl = gsap.timeline({ paused: true, defaults: { ease: 'power2.out' } });",
+        'tl.set("#root", { opacity: 1 }, 0);',
+    ]
+    for index in range(count):
+        selector = f"#media-{index + 1}"
+        start = round(index * duration / count, 2)
+        lines.append(f"tl.from('{selector}', {{ opacity: 0, scale: 1.08, duration: 0.32, ease: 'sine.out' }}, {start});")
+        lines.append(
+            f"tl.fromTo('{selector}', {{ scale: 1.04, xPercent: {[-2, 2, 0, -1][index % 4]} }}, "
+            f"{{ scale: 1.14, xPercent: {[2, -2, 1, 0][index % 4]}, duration: {max(1.2, duration / count):.2f}, ease: 'none' }}, {start});"
+        )
+    for index in range(1, count):
+        start = round(max(0, index * duration / count - 0.24), 2)
+        lines.append(f"tl.fromTo('#transition-{index}', {{ opacity: 0 }}, {{ opacity: 0.72, duration: 0.16, ease: 'power1.out' }}, {start});")
+        lines.append(f"tl.to('#transition-{index}', {{ opacity: 0, duration: 0.34, ease: 'sine.out' }}, {round(start + 0.16, 2)});")
+    lines.append("tl.fromTo('#light-leak', { xPercent: -45, opacity: 0.08 }, { xPercent: 35, opacity: 0.2, duration: %.2f, ease: 'sine.inOut' }, 0);" % duration)
+    lines.append(f"tl.to('#root', {{ opacity: 0.96, duration: 0.35, ease: 'sine.inOut' }}, {max(0, duration - 0.35):.2f});")
+    lines.append(f"tl.to('#timeline-end', {{ opacity: 1, duration: 0.01 }}, {duration});")
+    lines.append("window.__timelines = window.__timelines || {};")
+    lines.append('window.__timelines["root"] = tl;')
+    return "\n        ".join(lines)
+
+
+def add_auto_music(project_dir: Path, assets: list[dict[str, str]], prompt: str, duration: int) -> list[dict[str, str]]:
+    if audio_assets(assets) or not wants_auto_music(prompt):
+        return assets
+    assets_dir = project_dir / "assets"
+    assets_dir.mkdir(parents=True, exist_ok=True)
+    music_path = assets_dir / "auto_soft_beat.wav"
+    generate_soft_beat(music_path, duration)
+    return assets + [{"filename": music_path.name, "path": f"assets/{music_path.name}", "type": "audio"}]
+
+
+def generate_soft_beat(path: Path, duration: int) -> None:
+    sample_rate = 44100
+    total = int(duration * sample_rate)
+    bpm = 92
+    beat = sample_rate * 60 / bpm
+    with wave.open(str(path), "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(sample_rate)
+        frames = bytearray()
+        for n in range(total):
+            t = n / sample_rate
+            chord = (
+                0.20 * math.sin(2 * math.pi * 220 * t)
+                + 0.12 * math.sin(2 * math.pi * 277.18 * t)
+                + 0.10 * math.sin(2 * math.pi * 329.63 * t)
+            )
+            pulse_position = (n % int(beat)) / beat
+            pulse = max(0.0, 1.0 - pulse_position * 9)
+            shimmer = 0.04 * math.sin(2 * math.pi * 880 * t) * max(0.0, 1.0 - pulse_position * 16)
+            envelope = min(1.0, t / 1.5, (duration - t) / 1.8 if duration - t < 1.8 else 1.0)
+            sample = int(max(-1, min(1, (chord * 0.16 + pulse * 0.14 + shimmer) * envelope)) * 32767)
+            frames += sample.to_bytes(2, byteorder="little", signed=True)
+        handle.writeframes(frames)
 
 
 def render_composition_html(
@@ -109,6 +270,8 @@ def render_composition_html(
     duration: int,
 ) -> str:
     width, height = resolution_for_aspect(aspect_ratio)
+    scenes = scene_plan(assets, duration)
+    count = len(scenes)
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -134,42 +297,64 @@ def render_composition_html(
       object-fit: cover;
       filter: contrast(1.04) saturate(1.06);
       transform-origin: center;
-      animation: slowZoom linear both;
+      will-change: transform, opacity, filter;
     }}
-    .media-1 {{ animation-name: driftLeft; }}
-    .media-2 {{ animation-name: driftRight; }}
+    .crop-1 {{ object-position: 45% 50%; }}
+    .crop-2 {{ object-position: 55% 45%; }}
+    .crop-3 {{ object-position: 50% 58%; }}
+    .crop-4 {{ object-position: 48% 42%; }}
     .veil {{
       position: absolute;
       inset: 0;
       background: linear-gradient(180deg, rgba(5,12,10,.18), rgba(5,12,10,.04) 42%, rgba(5,12,10,.72));
       z-index: 20;
     }}
-    @keyframes slowZoom {{
-      from {{ transform: scale(1.02); }}
-      to {{ transform: scale(1.12); }}
+    .transition {{
+      position: absolute;
+      inset: 0;
+      z-index: 35;
+      opacity: 0;
+      pointer-events: none;
+      background: radial-gradient(circle at 35% 45%, rgba(255,255,255,.92), rgba(255,255,255,.18) 34%, rgba(255,255,255,0) 68%);
+      mix-blend-mode: screen;
     }}
-    @keyframes driftLeft {{
-      from {{ transform: scale(1.12) translateX(2%); }}
-      to {{ transform: scale(1.04) translateX(-2%); }}
+    .transition-1 {{ backdrop-filter: blur(10px); }}
+    .transition-2 {{ background: linear-gradient(100deg, rgba(255,255,255,0), rgba(255,255,255,.72), rgba(255,255,255,0)); }}
+    .grain {{
+      position: absolute;
+      inset: 0;
+      z-index: 32;
+      opacity: .08;
+      pointer-events: none;
+      background-image:
+        radial-gradient(circle at 20% 30%, rgba(255,255,255,.24) 0 1px, rgba(255,255,255,0) 1px),
+        radial-gradient(circle at 70% 65%, rgba(255,255,255,.18) 0 1px, rgba(255,255,255,0) 1px);
+      background-size: 7px 7px, 11px 11px;
     }}
-    @keyframes driftRight {{
-      from {{ transform: scale(1.04) translateX(-2%); }}
-      to {{ transform: scale(1.12) translateX(2%); }}
+    .light-leak {{
+      position: absolute;
+      inset: -18% -35%;
+      z-index: 33;
+      opacity: .12;
+      pointer-events: none;
+      background:
+        radial-gradient(circle at 20% 25%, rgba(219,177,124,.7), rgba(219,177,124,0) 32%),
+        radial-gradient(circle at 70% 60%, rgba(152,115,255,.42), rgba(152,115,255,0) 26%);
+      mix-blend-mode: screen;
     }}
   </style>
 </head>
 <body>
   <div id="root" class="composition" data-composition-id="root" data-start="0" data-width="{width}" data-height="{height}" data-fps="30">
       {media_tracks(assets, duration)}
+      {transition_tracks(duration, count)}
+      {ambient_tracks(duration)}
+      {music_track(assets, duration)}
       <div id="veil" class="clip veil" data-start="0" data-duration="{duration}"></div>
       <div id="timeline-end" style="opacity:0; position:absolute; width:1px; height:1px;"></div>
       <script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/gsap.min.js"></script>
       <script>
-        const tl = gsap.timeline({{ paused: true }});
-        tl.set("#root", {{ opacity: 1 }}, 0);
-        tl.to("#timeline-end", {{ opacity: 1, duration: 0.01 }}, {duration});
-        window.__timelines = window.__timelines || {{}};
-        window.__timelines["root"] = tl;
+        {timeline_script(duration, count)}
       </script>
   </div>
 </body>
@@ -185,9 +370,12 @@ def write_project_files(
     aspect_ratio: str,
     duration: int,
 ) -> dict[str, str]:
+    assets = add_auto_music(project_dir, assets, prompt, duration)
     html = render_composition_html(assets, prompt, aspect_ratio, duration)
-    (project_dir / "comp.html").write_text(html, encoding="utf-8")
     (project_dir / "index.html").write_text(html, encoding="utf-8")
+    legacy_comp = project_dir / "comp.html"
+    if legacy_comp.exists():
+        legacy_comp.unlink()
 
     package = {
         "scripts": {
@@ -242,7 +430,7 @@ def write_project_files(
         encoding="utf-8",
     )
     return {
-        "composition": (project_dir / "comp.html").as_posix(),
+        "composition": (project_dir / "index.html").as_posix(),
         "readme": (project_dir / "README.md").as_posix(),
         "manifest": (project_dir / "hyperframes_job.json").as_posix(),
         "package": (project_dir / "package.json").as_posix(),
