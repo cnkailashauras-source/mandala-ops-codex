@@ -171,7 +171,7 @@ def render_hyperframes_studio() -> str:
       </section>
       <section class="panel">
         <h2>提示词模板</h2>
-        <p>剪成 15 秒 TikTok 竖版商品短视频。开头 2 秒用产品近景做 hook，中间展示佩戴和叠戴细节，最后 2 秒加 Mandala Jewels 和 Save this styling idea。节奏干净、现代、适合欧美女性日常珠宝穿搭。</p>
+        <p>剪成 15 秒 TikTok 竖版商品短视频。开头 2 秒用产品近景做 hook，中间展示佩戴和叠戴细节，最后保持干净画面。不要字幕、不要水印、不要品牌文字，文字后期在剪映里人工添加。</p>
       </section>
     </aside>
     <section class="stack">
@@ -198,7 +198,7 @@ def render_hyperframes_studio() -> str:
           </label>
           <label>
             剪辑提示词
-            <textarea name="prompt" placeholder="写你想要的节奏、时长、字幕、转场、CTA。比如：剪成 15 秒 TikTok 竖版商品短视频..."></textarea>
+            <textarea name="prompt" placeholder="写你想要的节奏、时长、镜头顺序和转场。默认不添加字幕、水印、品牌文字或 CTA，方便后续在剪映调整。"></textarea>
           </label>
           <label>
             <span><input name="render_now" type="checkbox" value="1" checked style="width:auto"> 生成后直接渲染 MP4</span>

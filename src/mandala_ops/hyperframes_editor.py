@@ -80,17 +80,6 @@ def headline_from_prompt(prompt: str) -> str:
     return first[:72] or "Mandala Jewels"
 
 
-def caption_lines(prompt: str) -> list[str]:
-    text = " ".join(prompt.split())
-    if not text:
-        return ["Everyday jewelry detail", "Style it your way", "Mandala Jewels"]
-    candidates = [part.strip(" -:，,。.!?") for part in re.split(r"[。.!?\n]", text) if part.strip()]
-    lines = candidates[:3]
-    while len(lines) < 3:
-        lines.append(["Everyday jewelry detail", "Soft outfit detail", "Mandala Jewels"][len(lines)])
-    return [line[:58] for line in lines]
-
-
 def media_tracks(assets: list[dict[str, str]], duration: int) -> str:
     slot = max(2.5, duration / max(len(assets), 1))
     tracks = []
@@ -113,19 +102,6 @@ def media_tracks(assets: list[dict[str, str]], duration: int) -> str:
     return "\n      ".join(tracks)
 
 
-def caption_tracks(lines: list[str], duration: int) -> str:
-    starts = [0.35, max(2.8, duration * 0.38), max(5.2, duration * 0.72)]
-    length = max(2.1, min(4.2, duration / 3))
-    tracks = []
-    for index, line in enumerate(lines):
-        start = round(min(starts[index], max(0, duration - 2.2)), 2)
-        tracks.append(
-            f'<div id="caption-{index + 1}" class="clip caption caption-{index}" data-start="{start}" data-duration="{length}" '
-            f'data-fade="in out">{escape(line)}</div>'
-        )
-    return "\n      ".join(tracks)
-
-
 def render_composition_html(
     assets: list[dict[str, str]],
     prompt: str,
@@ -133,8 +109,6 @@ def render_composition_html(
     duration: int,
 ) -> str:
     width, height = resolution_for_aspect(aspect_ratio)
-    headline = headline_from_prompt(prompt)
-    captions = caption_lines(prompt)
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -170,50 +144,6 @@ def render_composition_html(
       background: linear-gradient(180deg, rgba(5,12,10,.18), rgba(5,12,10,.04) 42%, rgba(5,12,10,.72));
       z-index: 20;
     }}
-    .brand {{
-      position: absolute;
-      left: 54px;
-      top: 44px;
-      z-index: 30;
-      font-size: 30px;
-      letter-spacing: 0;
-      font-weight: 700;
-      color: rgba(255,255,255,.9);
-    }}
-    .caption {{
-      position: absolute;
-      left: 54px;
-      right: 54px;
-      bottom: 160px;
-      z-index: 40;
-      font-size: 64px;
-      line-height: 1.04;
-      font-weight: 800;
-      text-wrap: balance;
-      text-shadow: 0 10px 28px rgba(0,0,0,.38);
-    }}
-    .caption-1 {{ bottom: 260px; font-size: 54px; }}
-    .caption-2 {{ bottom: 96px; font-size: 44px; color: #d9fff7; }}
-    .cta {{
-      position: absolute;
-      left: 54px;
-      right: 54px;
-      bottom: 44px;
-      z-index: 45;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 20px;
-      font-size: 26px;
-      font-weight: 700;
-    }}
-    .pill {{
-      border: 1px solid rgba(255,255,255,.35);
-      background: rgba(255,255,255,.16);
-      backdrop-filter: blur(12px);
-      border-radius: 999px;
-      padding: 14px 20px;
-    }}
     @keyframes slowZoom {{
       from {{ transform: scale(1.02); }}
       to {{ transform: scale(1.12); }}
@@ -232,13 +162,6 @@ def render_composition_html(
   <div id="root" class="composition" data-composition-id="root" data-start="0" data-width="{width}" data-height="{height}" data-fps="30">
       {media_tracks(assets, duration)}
       <div id="veil" class="clip veil" data-start="0" data-duration="{duration}"></div>
-      <div id="brand" class="clip brand" data-start="0" data-duration="{duration}">Mandala Jewels</div>
-      <div id="headline" class="clip caption caption-hero" data-start="0.2" data-duration="2.6" data-fade="in out">{escape(headline)}</div>
-      {caption_tracks(captions, duration)}
-      <div id="cta" class="clip cta" data-start="{max(0, duration - 3)}" data-duration="3" data-fade="in">
-        <span class="pill">Save the styling idea</span>
-        <span>@mandalajewels</span>
-      </div>
       <div id="timeline-end" style="opacity:0; position:absolute; width:1px; height:1px;"></div>
       <script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/gsap.min.js"></script>
       <script>

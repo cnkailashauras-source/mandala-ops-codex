@@ -34,7 +34,12 @@ class HyperFramesEditorTest(unittest.TestCase):
         self.assertIn('data-height="1920"', html)
         self.assertIn('data-duration="15"', html)
         self.assertIn("data-start", html)
-        self.assertIn("Mandala Jewels", html)
+        self.assertIn('class="clip media', html)
+        self.assertIn('data-composition-id="root"', html)
+        self.assertNotIn("Mandala Jewels", html)
+        self.assertNotIn("Save the styling idea", html)
+        self.assertNotIn("@mandalajewels", html)
+        self.assertNotIn("caption", html.lower())
 
     def test_create_project_writes_hyperframes_files(self):
         with tempfile.TemporaryDirectory() as tmp:
